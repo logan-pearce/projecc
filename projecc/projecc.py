@@ -303,7 +303,7 @@ def KeplerianToCartesian(sma,ecc,inc,argp,lon,meananom,kep, solvefunc = DanbySol
         and acceleration at the specified time.  Accepts and arbitrary number of input orbits.  Semi-major 
         axis must be an astropy unit object in physical distance (ex: au, but not arcsec).  The observation
         time must be converted into mean anomaly before passing into function.
-        Inputs:
+        Args:
             sma (1xN arr flt) [au]: semi-major axis in au, must be an astropy units object, or else\
                 must be in AU
             ecc (1xN arr flt) [unitless]: eccentricity
@@ -393,7 +393,7 @@ def KeplerianToCartesian(sma,ecc,inc,argp,lon,meananom,kep, solvefunc = DanbySol
 def CartesianToKeplerian(pos, vel, kep):
     """Given observables XYZ position and velocity, compute orbital elements.  Position must be in
        au and velocity in km/s.  Returns astropy unit objects for all orbital elements.
-        Inputs:
+        Args:
             pos (3xN arr) [au]: position in xyz coords in au, with 
                         x = pos[0], y = pos[1], z = pos[2] for each of N orbits
                         +x = +Dec, +y = +RA, +z = towards observer
@@ -463,16 +463,39 @@ def GetOrbitTracks(sma,ecc,inc,argp,lon,kep, solvefunc = DanbySolve, Npoints = 1
         Ys[i] = pos[1].value
     return Xs, Ys
 
-def GetSepAndPA(Nsamples, Mstar1, Mstar2, SMALogLowerBound = 0, SMALogUpperBound = 3):
+def GetSepAndPA(Nsamples, Mstar1, Mstar2, SMALogLowerBound = 0, SMALogUpperBound = 3,
+                EccNielsenPrior = True, DrawLON = True, 
+                DrawSMA = True, solvefunc = DanbySolve):
+    ''' Generate a set of Nsamples simulated companions and return their current separation \
+        and position angle in the plane of the sky.
+
+    Args:
+        Nsamples (int): number of simulated companions to generate
+        Mstar1 (astropy units object): Mass of primary
+        Mstar2 (astropy units object): Mass of simulated companion
+        EccNielsenPrior (bool): If true, draw eccentricity from a linearly descending prior given in Nielsen+ 2019,
+            if false draw from uniform prior on [0,1].  Default = True
+        DrawLON (bool): If true, draw longitude of nodes from Unif[0,360] deg.  If false all LON values will be zero.
+            Default = True
+        DrawSMA (bool): If true, draw semi-major axis from log linear prior.  if false all SMA will be 100 AU. Default = True
+        SMALogLowerBound, SMALogUpperBound (flt): draw semi-major axis from log linear prior between these
+            two bounds.  Default = 0,3
+        solvefunc (function): Function to use for solving for eccentricity anomaly.  Default = DanbySolve
+
+    Returns:
+        arr: separations in AU
+        arr: position angles in degrees east of north
+
+    '''
     from projecc import DrawOrbits, DanbySolve, KeplerianToCartesian
     import numpy as np
 
     kep = KeplersConstant(Mstar1,Mstar2)
 
-    sma, ecc, inc, argp, lon, meananom = DrawOrbits(Nsamples, EccNielsenPrior = True, DrawLON = True, 
-            DrawSMA = True, SMALowerBound = SMALogLowerBound, SMAUpperBound = SMALogUpperBound)
+    sma, ecc, inc, argp, lon, meananom = DrawOrbits(Nsamples, EccNielsenPrior = EccNielsenPrior, DrawLON = DrawLON, 
+            DrawSMA = DrawSMA, SMALowerBound = SMALogLowerBound, SMAUpperBound = SMALogUpperBound)
 
-    pos, vel, acc = KeplerianToCartesian(sma,ecc,inc,argp,lon,meananom,kep, solvefunc = DanbySolve)
+    pos, vel, acc = KeplerianToCartesian(sma,ecc,inc,argp,lon,meananom,kep, solvefunc = solvefunc)
     r = np.sqrt(pos[:,0]**2 + pos[:,1]**2).value
     phi = (np.degrees(np.arctan2(pos[:,1].value,pos[:,0].value)))
 
