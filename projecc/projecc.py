@@ -77,7 +77,7 @@ def NielsenPrior(Nsamples):
     return ecc
 
 def DrawOrbits(number, EccNielsenPrior = False, DrawLON = True, DrawSMA = True, SMALowerBound = 0, SMAUpperBound = 3,
-                FixedSMA = None):
+                FixedSMA = 100*u.AU):
     ''' Draw N sets of orbital elements from prior distributions:
             semi-major axis: LogUnif[LowerBound,UpperBound] of fixed at 100 AU
             eccentricity: Unif[0,1] or Linearly Descending
@@ -93,6 +93,7 @@ def DrawOrbits(number, EccNielsenPrior = False, DrawLON = True, DrawSMA = True, 
             all LON values eill be zero
         DrawSMA (bool): If true, draw semi-major axis values from log uniform prior from \
             lower to upper bounds (in log space) in AU.  If false, all SMA values will be 100 AU.
+        FixedSMA (astropy unit object): If DrawSMA = False, supply a value of SMA as an astropy unit object
     Returns:
         arr: array of N sma values in AU
         arr: array of eccentricity values
@@ -108,7 +109,7 @@ def DrawOrbits(number, EccNielsenPrior = False, DrawLON = True, DrawSMA = True, 
     if DrawSMA:
         sma = 10 ** np.random.uniform(SMALowerBound,SMAUpperBound,number)
     else:
-        sma = FixedSMA*u.au
+        sma = FixedSMA.to(u.AU)
         sma = np.array(np.linspace(sma,sma,number))
     # Eccentricity:
     if EccNielsenPrior:
@@ -466,7 +467,7 @@ def GetOrbitTracks(sma,ecc,inc,argp,lon,kep, solvefunc = DanbySolve, Npoints = 1
 
 def GetSepAndPA(Nsamples, Mstar1, Mstar2, SMALogLowerBound = 0, SMALogUpperBound = 3,
                 EccNielsenPrior = True, DrawLON = True, 
-                DrawSMA = True, solvefunc = DanbySolve, FixedSMA = None):
+                DrawSMA = True, solvefunc = DanbySolve, FixedSMA =100*u.AU):
     ''' Generate a set of Nsamples simulated companions and return their current separation \
         and position angle in the plane of the sky.
 
@@ -482,6 +483,7 @@ def GetSepAndPA(Nsamples, Mstar1, Mstar2, SMALogLowerBound = 0, SMALogUpperBound
         SMALogLowerBound, SMALogUpperBound (flt): draw semi-major axis from log linear prior between these
             two bounds.  Default = 0,3
         solvefunc (function): Function to use for solving for eccentricity anomaly.  Default = DanbySolve
+        FixedSMA (astropy unit object): If DrawSMA = False, supply a value of SMA as an astropy unit object
 
     Returns:
         arr: separations in AU
