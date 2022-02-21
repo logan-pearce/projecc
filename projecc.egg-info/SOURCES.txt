@@ -1,0 +1,10 @@
+README.md
+setup.py
+projecc/__init__.py
+projecc/projecc.py
+projecc.egg-info/PKG-INFO
+projecc.egg-info/SOURCES.txt
+projecc.egg-info/dependency_links.txt
+projecc.egg-info/not-zip-safe
+projecc.egg-info/requires.txt
+projecc.egg-info/top_level.txt
