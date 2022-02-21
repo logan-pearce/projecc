@@ -76,7 +76,8 @@ def NielsenPrior(Nsamples):
     ecc = np.random.choice(e, size = Nsamples, p = P)
     return ecc
 
-def DrawOrbits(number, EccNielsenPrior = False, DrawLON = True, DrawSMA = True, SMALowerBound = 0, SMAUpperBound = 3):
+def DrawOrbits(number, EccNielsenPrior = False, DrawLON = True, DrawSMA = True, SMALowerBound = 0, SMAUpperBound = 3,
+                FixedSMA = None):
     ''' Draw N sets of orbital elements from prior distributions:
             semi-major axis: LogUnif[LowerBound,UpperBound] of fixed at 100 AU
             eccentricity: Unif[0,1] or Linearly Descending
@@ -107,7 +108,7 @@ def DrawOrbits(number, EccNielsenPrior = False, DrawLON = True, DrawSMA = True, 
     if DrawSMA:
         sma = 10 ** np.random.uniform(SMALowerBound,SMAUpperBound,number)
     else:
-        sma = 100.*u.au
+        sma = FixedSMA*u.au
         sma = np.array(np.linspace(sma,sma,number))
     # Eccentricity:
     if EccNielsenPrior:
@@ -465,7 +466,7 @@ def GetOrbitTracks(sma,ecc,inc,argp,lon,kep, solvefunc = DanbySolve, Npoints = 1
 
 def GetSepAndPA(Nsamples, Mstar1, Mstar2, SMALogLowerBound = 0, SMALogUpperBound = 3,
                 EccNielsenPrior = True, DrawLON = True, 
-                DrawSMA = True, solvefunc = DanbySolve):
+                DrawSMA = True, solvefunc = DanbySolve, FixedSMA = None):
     ''' Generate a set of Nsamples simulated companions and return their current separation \
         and position angle in the plane of the sky.
 
@@ -493,7 +494,7 @@ def GetSepAndPA(Nsamples, Mstar1, Mstar2, SMALogLowerBound = 0, SMALogUpperBound
     kep = KeplersConstant(Mstar1,Mstar2)
 
     sma, ecc, inc, argp, lon, meananom = DrawOrbits(Nsamples, EccNielsenPrior = EccNielsenPrior, DrawLON = DrawLON, 
-            DrawSMA = DrawSMA, SMALowerBound = SMALogLowerBound, SMAUpperBound = SMALogUpperBound)
+            DrawSMA = DrawSMA, SMALowerBound = SMALogLowerBound, SMAUpperBound = SMALogUpperBound, FixedSMA = FixedSMA)
 
     pos, vel, acc = KeplerianToCartesian(sma,ecc,inc,argp,lon,meananom,kep, solvefunc = solvefunc)
     r = np.sqrt(pos[:,0]**2 + pos[:,1]**2).value
