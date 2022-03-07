@@ -34,6 +34,23 @@ def period(a,m):
         pass
     return P
 
+def PeriodToSMA(P,m):
+    """ Given period in years and mass in solar masses, return semi-major axis in AU using Kepler's 3rd law"""
+    import numpy as np
+    import astropy.units as u
+    try:
+        P = P.to(u.yr)
+        m = m.to(u.Msun)
+    except:
+        pass
+    sma = ((P**2)*m) ** (1/3)
+    try:
+        sma = sma.value
+    except:
+        pass
+    return sma
+
+
 def MeanAnomToT0(MeanAnomaly, Period, RefEpoch = 2016, AfterDate = None):
     ''' Convert mean anomaly to epoch of periastron passage (T_0) for a given refence epoch.
     Args:
