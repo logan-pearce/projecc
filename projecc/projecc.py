@@ -517,6 +517,6 @@ def GetSepAndPA(Nsamples, Mstar1, Mstar2, SMALogLowerBound = 0, SMALogUpperBound
 
     pos, vel, acc = KeplerianToCartesian(sma,ecc,inc,argp,lon,meananom,kep, solvefunc = solvefunc)
     r = np.sqrt(pos[:,0]**2 + pos[:,1]**2).value
-    phi = (np.degrees(np.arctan2(pos[:,1].value,pos[:,0].value)))
+    phi = ((np.degrees(np.arctan2(-pos[1].value,pos[0].value))) ) % 360
 
     return r, phi
