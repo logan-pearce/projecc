@@ -96,11 +96,11 @@ def NielsenPrior(Nsamples):
 def DrawOrbits(number, EccNielsenPrior = False, DrawLON = True, DrawSMA = True, SMALowerBound = 0, SMAUpperBound = 3,
                 FixedSMA = 100*u.AU):
     ''' Draw N sets of orbital elements from prior distributions:
-            semi-major axis: LogUnif[LowerBound,UpperBound] of fixed at 100 AU
+            semi-major axis: LogUnif[LowerBound,UpperBound] (or fixed at 100 AU for OFTI application)
             eccentricity: Unif[0,1] or Linearly Descending
             inclination: cos(inc) Unif[-1,1]
             argument of periastron: Unif[0,2pi]
-            longitude of nodes: Unif[0,2pi] or fixed at 0
+            longitude of nodes: Unif[0,2pi] (or fixed at 0 for OFTI application)
             mean anomaly: Unif[0,2pi]
     Args:
         number (int): Number of sets of elements to draw
@@ -335,7 +335,7 @@ def KeplerianToCartesian(sma,ecc,inc,argp,lon,meananom,kep, solvefunc = DanbySol
         Returns:
             pos (3xN arr) [au]: position in xyz coords in au, with 
                         x = pos[0], y = pos[1], z = pos[2] for each of N orbits
-                        +x = +Dec, +y = +RA, +z = towards observer
+                        +x = -RA, +y = +Dec, +z = towards observer
             vel (3xN arr) [km/s]: velocity in xyz plane.
             acc (3xN arr) [km/s/yr]: acceleration in xyz plane.
         Written by Logan Pearce, 2019, inspired by Sarah Blunt
