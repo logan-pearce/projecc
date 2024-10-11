@@ -322,9 +322,8 @@ def KeplerianToCartesian(sma,ecc,inc,argp,lon,meananom,kep, solvefunc = DanbySol
         and acceleration at the specified time.  Accepts and arbitrary number of input orbits.  Semi-major 
         axis must be an astropy unit object in physical distance (ex: au, but not arcsec).  The observation
         time must be converted into mean anomaly before passing into function.
-        Args:
-            sma (1xN arr flt) [au]: semi-major axis in au, must be an astropy units object, or else\
-                must be in AU
+        Inputs:
+            sma (1xN arr flt) [au]: semi-major axis in au, must be an astropy units object
             ecc (1xN arr flt) [unitless]: eccentricity
             inc (1xN arr flt) [deg]: inclination
             argp (1xN arr flt) [deg]: argument of periastron
@@ -335,7 +334,7 @@ def KeplerianToCartesian(sma,ecc,inc,argp,lon,meananom,kep, solvefunc = DanbySol
         Returns:
             pos (3xN arr) [au]: position in xyz coords in au, with 
                         x = pos[0], y = pos[1], z = pos[2] for each of N orbits
-                        +x = -RA, +y = +Dec, +z = towards observer
+                        +x = +Dec, +y = +RA, +z = towards observer
             vel (3xN arr) [km/s]: velocity in xyz plane.
             acc (3xN arr) [km/s/yr]: acceleration in xyz plane.
         Written by Logan Pearce, 2019, inspired by Sarah Blunt
@@ -347,6 +346,7 @@ def KeplerianToCartesian(sma,ecc,inc,argp,lon,meananom,kep, solvefunc = DanbySol
         sma = sma.to(u.AU)
     except:
         sma = sma*u.AU
+    
     # Compute mean motion and eccentric anomaly:
     meanmotion = np.sqrt(kep / sma**3).to(1/u.s)
     try:
@@ -482,7 +482,7 @@ def GetOrbitTracks(sma,ecc,inc,argp,lon,kep, solvefunc = DanbySolve, Npoints = 1
         Ys[i] = pos[1].value
     return Xs, Ys
 
-def GetSepAndPA(Nsamples, Mstar1, Mstar2, SMALogLowerBound = 0, SMALogUpperBound = 3,
+def DrawSepAndPA(Nsamples, Mstar1, Mstar2, SMALogLowerBound = 0, SMALogUpperBound = 3,
                 EccNielsenPrior = True, DrawLON = True, 
                 DrawSMA = True, solvefunc = DanbySolve, FixedSMA =100*u.AU):
     ''' Generate a set of Nsamples simulated companions and return their current separation \
@@ -520,3 +520,29 @@ def GetSepAndPA(Nsamples, Mstar1, Mstar2, SMALogLowerBound = 0, SMALogUpperBound
     phi = ((np.degrees(np.arctan2(-pos[1].value,pos[0].value))) ) % 360
 
     return r, phi
+
+def GetSepAndPA(pos):
+    r = np.sqrt(pos[:,0]**2 + pos[:,1]**2).value
+    phi = ((np.degrees(np.arctan2(-pos[:,1].value,pos[:,0].value))) ) % 360
+    return r, phi
+
+def MonteCarloIt(thing, N = 10000):
+    ''' 
+    Generate a random sample of size = N from a 
+    Gaussian centered at thing[0] with std thing[1]
+    
+    Args:
+        thing (tuple, flt): tuple of (value,uncertainty).  Can be either astropy units object \
+            or float
+        N (int): number of samples
+    Returns:
+        array: N random samples from a Gaussian.
+
+    Written by Logan Pearce, 2020
+    '''
+    try:
+        out = np.random.normal(thing[0].value,thing[1].value,N)
+    except:
+        out = np.random.normal(thing[0],thing[1],N)
+
+    return out
