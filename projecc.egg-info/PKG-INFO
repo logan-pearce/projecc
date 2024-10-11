@@ -7,3 +7,5 @@ Author: Logan Pearce
 Author-email: loganpearce1@arizona.edu
 License: MIT
 License-File: LICENSE
+Requires-Dist: numpy
+Requires-Dist: astropy
