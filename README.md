@@ -3,6 +3,9 @@ A small simple package for projecting orbital elements onto sky plane and vice v
 
 ## Change log
 
+#### Oct 14, 2024:
+1.0.1 Fixed coordinate system in sep/pa functions
+
 #### Oct 11, 2024:
 1.0.1 Fixed coordinate system in KeplerianToCartesian and added Sirius example to notebook
 
