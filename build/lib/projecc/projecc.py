@@ -523,9 +523,7 @@ def DrawSepAndPA(Nsamples, Mstar1, Mstar2, SMALogLowerBound = 0, SMALogUpperBoun
 
 def GetSepAndPA(pos):
     r = np.sqrt(pos[:,0]**2 + pos[:,1]**2).value
-    dec = pos[:,0]
-    ra = pos[:,1]
-    phi = (np.arctan2(ra,dec).to(u.deg).value)%360
+    phi = ((np.degrees(np.arctan2(-pos[:,1].value,pos[:,0].value))) ) % 360
     return r, phi
 
 def MonteCarloIt(thing, N = 10000):
