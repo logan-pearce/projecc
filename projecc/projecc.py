@@ -372,7 +372,7 @@ def KeplerianToCartesian(sma,ecc,inc,argp,lon,meananom,kep, solvefunc = DanbySol
     # compute velocity:
     try:
         vel = np.zeros((3,len(sma)))
-        vel[0], vel[1] = (( -meanmotion * sma * np.sin(E) ) / ( 1- ecc * np.cos(E) )).to(u.km/u.s).value, \
+        vel[0], vel[1] = (( -meanmotion * sma * np.sin(E) ) / ( 1 - ecc * np.cos(E) )).to(u.km/u.s).value, \
                 (( meanmotion * sma * np.sqrt(1 - ecc**2) *np.cos(E) ) / ( 1 - ecc * np.cos(E) )).to(u.km/u.s).value
     except:
         vel = np.zeros(3)
@@ -473,6 +473,8 @@ def CartesianToKeplerian(pos, vel, kep):
 
 
 def GetOrbitTracks(sma,ecc,inc,argp,lon,kep, solvefunc = DanbySolve, Npoints = 100):
+    ''' For a set of orbital parameters, compute sky plane positions of points along the entire orbit.
+    '''
     Ms = np.linspace(0,2*np.pi,Npoints)
     Xs = np.zeros(Npoints)
     Ys = np.zeros(Npoints)
@@ -522,6 +524,8 @@ def DrawSepAndPA(Nsamples, Mstar1, Mstar2, SMALogLowerBound = 0, SMALogUpperBoun
     return r, phi
 
 def GetSepAndPA(pos):
+    ''' For the output from KeplerianToCartesian, compute the separation and position angle for the results
+    '''
     r = np.sqrt(pos[:,0]**2 + pos[:,1]**2).value
     dec = pos[:,0]
     ra = pos[:,1]
@@ -548,3 +552,492 @@ def MonteCarloIt(thing, N = 10000):
         out = np.random.normal(thing[0],thing[1],N)
 
     return out
+
+
+def GetPhaseAngle(MeanAnom, ecc, inc, argp):
+    ''' Function for returning observed phase angle given orbital elements
+    Args:
+        MeanAnom (flt): Mean anomly in radians, where MeanAnom = orbit fraction*2pi, or M=2pi * time/Period
+        ecc (flt): eccentricity, defined on [0,1)
+        inc (flt): inclination in degrees, where inc = 90 is edge on, inc = 0 or 180 is face on orbit
+        argp (flt): argument of periastron in degrees, defined on [0,360)
+        
+    Returns:
+        flt: phase angle in degrees
+    Written by Logan Pearce, 2023
+    '''
+    import numpy as np
+    inc = np.radians(inc)
+    argp = np.radians(argp)
+    EccAnom = DanbySolve(EccentricityAnomaly, MeanAnom, ecc, 0.001, maxnum=50)
+    TrueAnom = 2*np.arctan( np.sqrt( (1+ecc)/(1-ecc) ) * np.tan(EccAnom/2) )
+    Alpha = np.arccos( np.sin(inc) * np.sin(TrueAnom + argp) )
+    
+    return np.degrees(Alpha)
+
+def GetPhasesFromOrbit(sma,ecc,inc,argp,lon,Ms,Mp):
+    ''' Creates an array of viewing phases for an orbit in the plane of the sky to the observer with the maximum phase
+     (faintest contrast) at inferior conjunction (where planet is aligned between star and observer) and minimum phase 
+     (brightest) at superior conjunction.
+
+    args:
+        sma [flt]: semi-major axis in au 
+        ecc [flt]: eccentricity
+        inc [flt]: inclination in degrees
+        argp [flt]: argument of periastron in degrees
+        lon [flt]: longitude of ascending node in degrees
+        Ms [flt]: star mass in solar masses
+        Mp [flt]: planet mass in Jupiter masses
+
+    returns:
+        arr: array of viewing phases from periastron back to periastron.
+
+    '''
+    # Getting phases for the orbit described by the mean orbital params:
+    import astropy.units as u
+    from myastrotools.tools import keplerian_to_cartesian, keplersconstant
+    # Find the above functions here: https://github.com/logan-pearce/myastrotools/blob/2bbc284ab723d02b7a7189494fd3eabaed434ce1/myastrotools/tools.py#L2593
+    # and here: https://github.com/logan-pearce/myastrotools/blob/2bbc284ab723d02b7a7189494fd3eabaed434ce1/myastrotools/tools.py#L239
+    # Make lists to hold results:
+    xskyplane,yskyplane,zskyplane = [],[],[]
+    phase = []
+    # How many points to compute:
+    Npoints = 1000
+    # Make an array of mean anomaly:
+    meananom = np.linspace(0,2*np.pi,Npoints)
+    # Compute kepler's constant:
+    kepmain = keplersconstant(Ms*u.Msun, Mp*u.Mjup)
+    # For each orbit point:
+    for m in meananom:
+        # compute 3d projected position:
+        pos, vel, acc = keplerian_to_cartesian(sma*u.au,ecc,inc,argp,lon,m,kepmain)
+        # add to list:
+        xskyplane.append(pos[0].value)
+        yskyplane.append(pos[1].value)
+        zskyplane.append(pos[2].value)
+
+    ##### Getting the phases as a function of mean anom: ###########
+    ###### Loc of inf conj:
+    # Find all points with positive z -> out of sky plane:
+    towardsobsvers = np.where(np.array(zskyplane) > 0)[0]
+    # mask everything else:
+    maskarray = np.ones(Npoints) * 99999
+    maskarray[towardsobsvers] = 1
+    # mask x position:
+    xtowardsobsvers = np.array(xskyplane)*maskarray
+    # find where x position is minimized in the section of orbit towards the observer:
+    infconj_ind = np.where( np.abs(xtowardsobsvers) == min(np.abs(xtowardsobsvers)) )[0][0]
+    ###### Loc of sup conj:
+    # Do the opposite - find where x in minimized for points into the plane/away from observer
+    awayobsvers = np.where(np.array(zskyplane) < 0)[0]
+    maskarray = np.ones(Npoints) * 99999
+    maskarray[awayobsvers] = 1
+    xawayobsvers = np.array(xskyplane)*maskarray
+    supconj_ind = np.where( np.abs(xawayobsvers) == min(np.abs(xawayobsvers)) )[0][0]
+
+    #### Find max and min value phases for this inclination:
+    phis = np.linspace(0,180,Npoints)
+    phases = np.array(alphas(inc,phis))
+    minphase = min(phases)
+    maxphase = max(phases)
+    # Generate empty phases array:
+    phases_array = np.ones(Npoints)
+
+    ###### Set each side of the phases array to range from min to max phase on either side of 
+    # inf/sup conjunctions:
+    if supconj_ind > infconj_ind:
+        # Set one side of the phases array to phases from max to min
+        phases_array[0:len(xskyplane[infconj_ind:supconj_ind])] = np.linspace(maxphase,minphase,
+                                                            len(xskyplane[infconj_ind:supconj_ind]))
+        # # Set the other side to phases from min to max
+        phases_array[len(xskyplane[infconj_ind:supconj_ind]):] = np.linspace(minphase,maxphase,
+                                                            len(xskyplane)-len(xskyplane[infconj_ind:supconj_ind]))
+        # Finally roll the array to align with the mean anomaly array:
+        phases_array = np.roll(phases_array,infconj_ind)
+
+
+    else:
+        # Set one side of the phases array to phases from min to max
+        phases_array[0:len(xskyplane[supconj_ind:infconj_ind])] = np.linspace(minphase,maxphase,
+                                                            len(xskyplane[supconj_ind:infconj_ind]))
+        # # Set the other side to phases from max to min
+        phases_array[len(xskyplane[supconj_ind:infconj_ind]):] = np.linspace(maxphase,minphase,
+                                                            len(xskyplane)-len(xskyplane[supconj_ind:infconj_ind]))
+        # Finally roll the array to align with the mean anomaly array:
+        phases_array = np.roll(phases_array,supconj_ind)
+
+    return xskyplane, yskyplane, zskyplane, phases_array
+
+
+def GetKDE(ra, dec, size=100j):
+    ''' For two arrays, generate a 2D kernel density estimation
+    '''
+    from scipy import stats
+    xmin = ra.min()
+    xmax = ra.max()
+    ymin = dec.min()
+    ymax = dec.max()
+    X, Y = np.mgrid[xmin:xmax:size, ymin:ymax:size]
+    positions = np.vstack([X.ravel(), Y.ravel()])
+    values = np.vstack([ra,dec])
+    kernel = stats.gaussian_kde(values)
+    Z = np.reshape(kernel(positions).T, X.shape)
+    return np.rot90(Z), xmin, ymin, xmax, ymax
+
+from scipy.ndimage import gaussian_filter
+def GetHist(xx,yy, sigmas = [1,2]):
+    ''' For arrays xx and yy, generate a 2d histogram and values for plotting contours
+    '''
+    H, xe,ye = np.histogram2d(xx, yy, bins=(100,100))
+    Hflat = H.flatten()
+    inds = np.argsort(Hflat)[::-1]
+    Hflat = Hflat[inds]
+    sm = np.cumsum(Hflat)
+    sm /= sm[-1]
+    
+    levels = 1.0 - np.exp(-0.5 * np.array(sigmas) ** 2)
+    V = np.empty(len(levels))
+    for i, v0 in enumerate(levels):
+        try:
+            V[i] = Hflat[sm <= v0][-1]
+        except IndexError:
+            V[i] = Hflat[0]
+    midpoints = (xe[1:] + xe[:-1])/2, (ye[1:] + ye[:-1])/2
+    return H, xe, ye, midpoints, np.sort(V)
+
+def alphas(inc, phis):
+    '''
+    From Lovis+ 2017 sec 2.1:<br>
+    $\cos(\alpha) = - \sin(i) \cos(\phi)$<br>
+    where $i$ is inclination and $\phi$ is orbital phase with $\phi= 0$ at inferior conjunction
+
+    args:
+        inc [flt]: inclination in degrees
+        phis [arr]: array of phi values from zero to 360 in degrees
+
+    returns:
+        arr: array of viewing phase angles for an orbit from inferior conjunction back to 
+            inferior conjunction
+    '''
+    alphs = []
+    for phi in phis:
+        alphs.append(np.degrees(np.arccos(-np.sin(np.radians(inc)) * np.cos(np.radians(phi)))))
+    return alphs
+
+
+def GetOrbitPlaneOfSky(sma,ecc,inc,argp,lon,meananom,kep):
+    ''' For a value fo sma, ecc, inc, argp, lan, and mass, compute the position in the sky plane for one or
+    an array of mean anomaly values past periastron.
+
+    args:
+        sma [astropy unit object]: semi-major axis in au
+        ecc [flt]: eccentricity
+        inc [flt]: inclination in degrees
+        argp [flt]: argument of periastron in degrees
+        lon [flt]: longitude of nodes in degrees
+        meananom [flt or arr]: a single value or array of values for the mean anomaly in radians at which 
+            to compute positions
+        kep [astropy unit object]: value of Kepler's constant for the system
+    
+    returns:
+        flt or arr: X value of position, where +x corresponds to +Declination
+        flt or arr: Y value, where +Y corresponds to +Right Ascension
+        flt or arr: Z value, where +Z corresponds to towards the observer
+    '''
+    try:
+        X,Y,Z = [],[],[]
+        for m in meananom:
+            pos, vel, acc = KeplerianToCartesian(sma,ecc,inc,argp,lon,m,kep)
+            X.append(pos[0].value)
+            Y.append(pos[1].value)
+            Z.append(pos[2].value)
+    except TypeError:
+        X = pos[0].value
+        Y = pos[1].value
+        Z = pos[2].value
+    return X, Y, Z
+
+def GetOrbitPlaneOfOrbit(sma,ecc,meananom,kep):
+    ''' For a value fo sma, ecc, and mass, compute the position in the orbit plane for one or
+    an array of mean anomaly values past periastron.
+
+    args:
+        sma [astropy unit object]: semi-major axis in au
+        ecc [flt]: eccentricity
+        meananom [flt or arr]: a single value or array of values for the mean anomaly in radians at which 
+            to compute positions
+        kep [astropy unit object]: value of Kepler's constant for the system
+    
+    returns:
+        flt or arr: x value of position, where +x corresponds to semi-major axis towards periastron
+        flt or arr: y value, where +y corresponds to semi-minor axis counterclockwise perpendiculat to +x
+        flt or arr: z value, where +z corresponds to angular momentum vector for right handed system
+    '''
+    import numpy as np
+    import astropy.units as u
+    try:
+        x,y,z = [],[],[]
+        for m in meananom:
+            E = DanbySolve(EccentricityAnomaly, m, ecc, 0.001)
+            x.append((sma*(np.cos(E) - ecc)).value)
+            y.append((sma*np.sqrt(1-ecc**2)*np.sin(E)).value)
+            z.append(0)
+    except TypeError:
+        E = DanbySolve(EccentricityAnomaly, meananom, ecc, 0.001)
+        x = (sma*(np.cos(E) - ecc)).value
+        y = (sma*np.sqrt(1-ecc**2)*np.sin(E)).value
+        z = 0
+        
+    return x,y,z
+
+from astropy.time import Time
+class Planet(object):
+    ''' Class for simulating orbits in the plane of the sky at a specific time given orbital parameters with gaussian errors.
+    All parameters should be supplied as a tuple of [mean,std]
+    
+    Args:
+        sma [tuple]: semi-major axis in au
+        ecc [tuple]: eccentricity
+        argp [tuple]: argument of periastron of planet in degrees
+        lan [tuple]: longitude of ascending node in degrees
+        period [tuple]: period in days
+        Mpsini [tuple]: planet minimum mass in Earth masses
+        Mstar [tuple]: star mass in solar masses
+        distance [tuple]: system distance in parsec
+        obsdate [astropy Time object]: date around which you'd like to observe
+    '''
+    def __init__(self,sma,ecc,inc,argp,lan,period,t0,Mpsini,Mstar,parallax):
+        self.sma = sma
+        self.ecc = ecc
+        self.inc = inc
+        self.argp = argp
+        self.lan = lan
+        self.period = period
+        t01 = Time(t0[0], format='jd')
+        self.t0 = [t01.decimalyear, t0[1]*u.d.to(u.yr)]
+        self.Mpsini = Mpsini
+        self.Mstar = Mstar
+        self.parallax = parallax
+        distance = 1000/(MonteCarloIt(parallax))
+        self.distance = [np.mean(distance),np.std(distance)]
+        self.GetDateOfMaxElongation()
+        
+    def GetDateOfMaxElongation(self):
+        # Find some periastron dates going forward from t0
+        timespan = np.arange(0,1000,1) # days
+        tps = [self.t0[0]]
+        for t in timespan:
+            pps = MonteCarloIt(self.period)
+            tps.append(tps[-1] + pps*u.d.to(u.yr))
+        tps_mean = np.array([np.mean(t) for t in tps])
+        tps_std = np.array([np.std(t) for t in tps])
+        self.periastron_times = tps_mean
+        self.periastron_times_error = tps_std
+        # For a time in the near future:
+        obstime = Time('2026-04-15T00:00:00', format='isot').decimalyear
+        self.obstime = obstime
+        # find the most recent time of periastron to that date:
+        ind = np.where(self.periastron_times <= obstime)[0]
+        nearest_periastron = tps_mean[ind[-1]]
+        self.nearest_periastron_to_Apr152026 = nearest_periastron
+        # Using the mean orbit parameter values generate an array of separations spanning one orbit:
+        Orbfrac = np.linspace(0,1,1000)
+        # create empty container:
+        seps1 = []
+        if type(self.inc) == list:
+            incl = self.inc[0]
+        elif type(self.inc) == int:
+            incl = self.inc
+        else:
+            incl = 60
+        if type(self.lan) == list:
+            lan = self.lan[0]
+        elif type(self.lan) == int:
+            lan = self.lan
+        else:
+            lan = 0
+        kep = KeplersConstant(self.Mstar[0]*u.Msun,(self.Mpsini[0]/np.sin(np.radians(incl)))*u.Mearth)
+        ras1, decs1 = [], []
+        for i in range(len(Orbfrac)):
+            pos, vel, acc = KeplerianToCartesian(self.sma[0],
+                                                 self.ecc[0],
+                                                 incl,
+                                                 self.argp[0],
+                                                 lan,
+                                                 Orbfrac[i]*2*np.pi,kep, solvefunc = DanbySolve)
+            decs1.append((pos[0].value / self.distance[0])*1000)
+            ras1.append((pos[1].value / self.distance[0])*1000)
+            seps1.append((np.sqrt(pos[0].value**2 + pos[1].value**2)/ self.distance[0])*1000)
+        self.ras_mean_params = ras1
+        self.decs_mean_params = decs1
+        self.seps_mean_params = seps1
+        
+        # Find where its at largest separation:
+        self.ind_of_max_elongation = np.where(seps1 == max(seps1))[0]
+        # What fraction on the period is that?
+        self.time_of_max_elongation_days = Orbfrac[self.ind_of_max_elongation] * self.period[0]
+        # add that time to the nearest periastron and that gives the time of max elongation:
+        self.date_of_max_elongation = self.nearest_periastron_to_Apr152026 + self.time_of_max_elongation_days*u.d.to(u.yr)
+        
+
+class OrbitSim(object):
+    def __init__(self,planet, date, Ntrials = 100000, limit_inc_lt90 = True):
+        ''' Generate an array of points along an orbit at a specific date for a Planet object
+        
+        Args:
+            planet [Planet object]:
+            date [decimal year]: date at which to generate points
+            Ntrials [int]: number of points to generate
+            limit_inc_lt90 [bool]: if True, inc will be generated from cos(i) unif in [0,1], else inc will be 
+                             generated from cos(i) unif in [-1,1]
+        
+        Returns:
+            object with attributes of arrays of size Ntrials drawn from normal distrbutions around provided 
+            tuples for each of the following parameters:
+                sma in au
+                ecc
+                inc
+                argp
+                lan
+                meananomaly at date
+                kepler's constant (mass parameter)
+                Mstar
+                Mplanet
+                distance
+                period
+        '''
+        self.sma = MonteCarloIt(planet.sma, N = Ntrials)
+        self.ecc = MonteCarloIt(planet.ecc, N = Ntrials)
+        self.Mpsini = MonteCarloIt(planet.Mpsini, N = Ntrials)
+        self.argp = MonteCarloIt(planet.argp, N = Ntrials)
+        self.period = MonteCarloIt([planet.period[0]*u.d.to(u.yr),
+                                    planet.period[1]*u.d.to(u.yr)],
+                                    N = Ntrials)
+        self.Mstar = MonteCarloIt(planet.Mstar, N = Ntrials)
+        self.distance = MonteCarloIt(planet.distance, N = Ntrials)
+        Mpsi = MonteCarloIt(self.Mpsini, N = Ntrials)
+        try:
+            if np.isnan(planet.inc):
+                if limit_inc_lt90:
+                    cosi = np.random.uniform(0.09,0.985, Ntrials)
+                else:
+                    cosi = np.random.uniform(-0.985,0.985,Ntrials)
+                self.inc = np.degrees(np.arccos(cosi))
+            elif type(planet.inc) == int or type(planet.inc) == float:
+                self.inc = np.array([planet.inc]*Ntrials)
+            elif type(planet.inc) == list:
+                self.inc = MonteCarloIt(inc, N = Ntrials)
+        except ValueError:
+            self.inc = MonteCarloIt(planet.inc, N = Ntrials)
+        self.Mp = Mpsi / np.sin(np.radians(self.inc))
+        if np.mean(self.Mp) > 6:
+            self.Mp = np.array([6]*Ntrials)
+        try:
+            if np.isnan(planet.lan):
+                self.lan = np.random.uniform(size = Ntrials) * 360
+            elif type(planet.lan) == int or type(planet.lan) == float:
+                self.lan = np.array([planet.lan]*Ntrials)
+        except ValueError:
+            self.lan = MonteCarloIt(planet.lan, N = Ntrials)
+        # find the most recent periastron time:
+        ind = np.where(planet.periastron_times <= date)[0]
+        trefarray = MonteCarloIt([planet.periastron_times[ind[-1]],
+                                planet.periastron_times_error[ind[-1]]],
+                                N = Ntrials) # in decimalyear
+        self.trefarray = trefarray
+        deltaT = (date - trefarray) # in decimalyear
+        self.deltaT = deltaT
+        Nperiods = deltaT / (planet.period[0]*u.d.to(u.yr))
+        self.Nperiods = Nperiods
+        self.Meananom = (Nperiods % 1) * 2*np.pi
+        #Meananom = np.random.uniform(size = Ntrials) * 2*np.pi
+        self.kep = KeplersConstant(self.Mstar*u.Msun,self.Mp*u.Mearth)
+
+        pos, vel, acc = KeplerianToCartesian(self.sma,self.ecc,self.inc,self.argp,self.lan,self.Meananom,self.kep)
+        self.dec_mas = (pos[:,0].value / self.distance)*1000
+        self.ra_mas = (pos[:,1].value / self.distance)*1000
+        self.sep_mas = np.sqrt(self.ra_mas**2 + self.dec_mas**2)
+
+        phases = []
+        for i in range(len(self.sma)):
+            phase = GetPhaseAngle(self.Meananom[i], self.ecc[i], self.inc[i], self.argp[i])
+            phases.append(phase)
+        self.phases = phases
+
+        
+def MakeCloudPlot(points, lim = 50, plot_gmt_lod = False):
+    ''' For an OrbitSim object, make a plot of the array of points at a specific date.
+
+    args:
+        points [OrbitSim object]: OrbitSim object created from a Planet object
+        lim [int]: limit of plot axis in mas
+        plot_gmt_lod [bool]: If True, plot circles representing the size of GMT lambda/D at 800 nm.
+    '''
+    import matplotlib.pyplot as plt
+    fig,ax = plt.subplots()
+    plt.scatter(0,0, marker='*',color='orange',s=300, zorder=10)
+    gmt_lod = (0.2063 * 0.8/25.4) * 1000
+    linestyles=[':','--','-']
+    pp = ax.scatter(points.ra_mas,points.dec_mas, ls='None', marker='.', alpha = 0.7, c=points.phases, cmap='viridis', s=0.1)
+    H, xbins, ybins, midpoints, clevels = GetHist(points.ra_mas, points.dec_mas, sigmas = [1,2,3])
+    CS1 = ax.contour(*midpoints, gaussian_filter(H.T, sigma=2), levels = clevels, 
+                      linewidths=3, linestyles = linestyles, colors=['orange']*len(linestyles))
+    cbar = plt.colorbar(pp)
+    cbar.ax.set_ylabel('Viewing Phase [deg]')
+    if plot_gmt_lod:
+        import matplotlib.patches as patches
+        circ = patches.Circle((0,0), gmt_lod, alpha=0.5, color='grey')
+        ax.add_patch(circ)
+        an = patches.Annulus((0,0), r=2*gmt_lod, width=0.3, color='grey', ls='-')
+        ax.add_patch(an)
+        an = patches.Annulus((0,0), r=3*gmt_lod, width=0.3, color='grey', ls='-')
+        ax.add_patch(an)
+        clay_lod = (0.2063*(0.8)/6.5) * 1000
+        an = patches.Annulus((0,0), r=clay_lod, width=0.1, color='grey', ls=':')
+        ax.add_patch(an)
+    
+    ax.set_xlim(-lim,lim)
+    ax.set_ylim(-lim,lim)
+    ax.invert_xaxis()
+    ax.set_aspect('equal')
+    ax.set_xlabel('$\Delta$RA [mas]')
+    ax.set_ylabel('$\Delta$DEC [mas]')
+    ax.grid(ls=':')
+    return fig
+
+
+def GetGaiaOrbitalElementsWithNSSTools(GaiaDR3_sourceid):
+    ''' For solutions in Gaia DR3 Non-single star catalog (NSS) with solution type "Orbital",
+    query the NSS catalog, retrieve Thiele Innes elements, anf convert them to Campbell elements.
+
+    Args:
+        GaiaDR3_sourceid (str): Gaia DR3 source id
+
+    Returns:
+        dict: Campbell elements
+    '''
+    from astroquery.gaia import Gaia
+    from nsstools import NssSource
+    st = ''' select * from gaiadr3.nss_two_body_orbit where source_id = 
+        '''+str(GaiaDR3_sourceid)
+    j = Gaia.launch_job(st)
+    r = j.get_results()
+    r = r.to_pandas()
+    r['source_id'] = r['SOURCE_ID']
+    source = NssSource(r, indice=0)
+    camp = source.campbell()
+
+    T0 = 2016.0 + (r['t_periastron'][0]*u.d.to(u.yr)) # # days since 2016.0
+    elements = {"sma [mas]":[camp['a0'][0],camp['a0_error'][0]],
+                'ecc':[r['eccentricity'][0], r['eccentricity_error'][0]],
+                'inc [deg]':[camp['inclination'][0],camp['inclination_error'][0]],
+                'argp [deg]': [camp['arg_periastron'][0],camp['arg_periastron_error'][0]],
+                'lan [deg]': [camp['nodeangle'][0],camp['nodeangle_error'][0]],
+                'T0 [yr]': [T0,r['t_periastron_error'][0]*u.d.to(u.yr)],
+                'P [d]': [r['period'][0], r['period_error'][0]],
+                'Chi2':r['obj_func'][0],
+                'GOF':r['goodness_of_fit'][0],
+                'Efficiency': r['efficiency'][0],
+                'Significance':r['significance'][0]
+               }
+    return elements
