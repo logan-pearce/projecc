@@ -3,6 +3,9 @@ A small simple package for projecting orbital elements onto sky plane and vice v
 
 ## Change log
 
+#### Jan 27, 2025:
+1.1.0 Added classes and funtions for predicting the position of a planet in the sky plane at a given time
+
 #### Oct 14, 2024:
 1.0.1 Fixed coordinate system in sep/pa functions
 

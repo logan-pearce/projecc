@@ -5,11 +5,11 @@ def readme():
         return f.read()
 
 setup(name='projecc',
-      version='1.0.2',
+      version='1.1.0',
       description='A small simple package for projecting orbital elements onto sky plane and vice versa',
       url='https://github.com/logan-pearce/projecc',
       author='Logan Pearce',
-      author_email='loganpearce1@arizona.edu',
+      author_email='lapearce@umich.edu',
       license='MIT',
       packages=['projecc'],
       install_requires=['numpy','astropy'],
