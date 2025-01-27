@@ -1,6 +1,8 @@
 # projecc
 A small simple package for projecting orbital elements onto sky plane and vice versa
 
+See the <a href="https://github.com/logan-pearce/projecc/blob/main/projecc/UsingProjecc.ipynb">Using Projecc notebook</a> for descriptions, definitions, and examples
+
 ## Change log
 
 #### Jan 27, 2025:

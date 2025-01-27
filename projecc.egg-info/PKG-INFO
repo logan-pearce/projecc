@@ -1,11 +1,10 @@
-Metadata-Version: 2.1
+Metadata-Version: 1.0
 Name: projecc
-Version: 1.0.2
+Version: 1.1.0
 Summary: A small simple package for projecting orbital elements onto sky plane and vice versa
 Home-page: https://github.com/logan-pearce/projecc
 Author: Logan Pearce
-Author-email: loganpearce1@arizona.edu
+Author-email: lapearce@umich.edu
 License: MIT
-License-File: LICENSE
-Requires-Dist: numpy
-Requires-Dist: astropy
+Description: UNKNOWN
+Platform: UNKNOWN
