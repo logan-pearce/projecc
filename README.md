@@ -1,7 +1,17 @@
 # projecc
-A small simple package for projecting orbital elements onto sky plane and vice versa
+A small simple package for projecting orbital elements onto sky plane and vice versa.
 
-See the <a href="https://github.com/logan-pearce/projecc/blob/main/projecc/UsingProjecc.ipynb">Using Projecc notebook</a> for descriptions, definitions, and examples
+## Installation
+
+Install via pip:
+<code>pip install projecc</code>
+
+On the package index: <a href="https://pypi.org/project/projecc/">projecc</a>
+
+
+## Tutorials
+
+See the <a href="https://github.com/logan-pearce/projecc/blob/main/projecc/UsingProjecc.ipynb">Using Projecc notebook</a> for descriptions, definitions, and examples.
 
 ## Change log
 
