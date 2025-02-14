@@ -2,6 +2,41 @@ import numpy as np
 import astropy.units as u
 import astropy.constants as c
 
+def update_progress(n,max_value):
+    ''' Create a progress bar
+    
+    Args:
+        n (int): current count
+        max_value (int): ultimate values
+    
+    '''
+    import sys
+    barLength = 20 # Modify this to change the length of the progress bar
+    status = ""
+    progress = np.round(float(n/max_value),decimals=2)
+    if isinstance(progress, int):
+        progress = float(progress)
+    if not isinstance(progress, float):
+        progress = 0
+        status = "error: progress var must be float\r\n"
+    if progress < 0:
+        progress = 0
+        status = "Halt...\r\n"
+    #if progress >= 1.:
+    #    progress = 1
+    #    status = "Done...\r\n"
+    if n == max_value:
+        progress = 1
+        status = "Done...\r\n"
+    block = int(round(barLength*progress))
+    text = "\r{0}% ({1} of {2}): |{3}|  {4}".format(np.round(progress*100,decimals=1), 
+                                                  n, 
+                                                  max_value, 
+                                                  "#"*block + "-"*(barLength-block), 
+                                                  status)
+    sys.stdout.write(text)
+    sys.stdout.flush()
+
 def KeplersConstant(m1,m2):
     '''Compute Kepler's constant for two gravitationally bound masses k = G*m1*m2/(m1+m2) = G + (m1+m2)
         Inputs:
@@ -670,8 +705,6 @@ def GetPhasesFromOrbit(sma,ecc,inc,argp,lon,Ms,Mp):
 
 
 def GetKDE(ra, dec, size=100j):
-    ''' For two arrays, generate a 2D kernel density estimation
-    '''
     from scipy import stats
     xmin = ra.min()
     xmax = ra.max()
@@ -682,7 +715,25 @@ def GetKDE(ra, dec, size=100j):
     values = np.vstack([ra,dec])
     kernel = stats.gaussian_kde(values)
     Z = np.reshape(kernel(positions).T, X.shape)
-    return np.rot90(Z), xmin, ymin, xmax, ymax
+
+    return Z.T, xmin, ymin, xmax, ymax
+
+def GetCLevels(arr, sigmas = [1,2,3]):
+    Hflat = arr.flatten()
+    inds = np.argsort(Hflat)[::-1]
+    Hflat = Hflat[inds]
+    sm = np.cumsum(Hflat)
+    sm /= sm[-1]
+
+    levels = 1.0 - np.exp(-0.5 * np.array(sigmas) ** 2)
+    V = np.empty(len(levels))
+    for i, v0 in enumerate(levels):
+        try:
+            V[i] = Hflat[sm <= v0][-1]
+        except IndexError:
+            V[i] = Hflat[0]
+    clevels = np.sort(V)
+    return clevels
 
 from scipy.ndimage import gaussian_filter
 def GetHist(xx,yy, sigmas = [1,2]):
@@ -790,6 +841,24 @@ def GetOrbitPlaneOfOrbit(sma,ecc,meananom,kep):
         
     return x,y,z
 
+def ComputeTeq(StarTeff, StarRad, sep, Ab = 0.3, fprime = 1/4):
+    ''' Compute average equilibrium temperature from flux balance, from Seager 2016 Exoplanet Atmospheres eqn 3.9
+    https://books.google.com/books?id=XpaYJD7IE20C
+
+    Args:
+        StarTeff [flt]: star effective temperature
+        StarRad [astropy unit object]: star radius
+        sep [astropy unit object]: star-planet orbit plane separation in distance units
+        Ab [flt]: Albedo. Default = 0.3
+        fprime [flt]: Default = 1/4
+    Returns
+        flt: average planet equilibrium temperature
+    '''
+    import astropy.units as u
+    StarRad = StarRad.to(u.km)
+    sep = sep.to(u.km)
+    return (StarTeff * np.sqrt(StarRad/sep) * ((fprime * (1 - Ab))**(1/4))).value
+
 from astropy.time import Time
 class Planet(object):
     ''' Class for simulating orbits in the plane of the sky at a specific time given orbital parameters with gaussian errors.
@@ -805,8 +874,9 @@ class Planet(object):
         Mstar [tuple]: star mass in solar masses
         distance [tuple]: system distance in parsec
         obsdate [astropy Time object]: date around which you'd like to observe
+        Mp_is_Mpsini [bool]: Set to True if the planet mass tuple is an Msin(i) value, Default: True
     '''
-    def __init__(self,sma,ecc,inc,argp,lan,period,t0,Mpsini,Mstar,parallax):
+    def __init__(self,sma,ecc,inc,argp,lan,period,t0,Mpsini,Mstar,parallax, Mp_is_Mpsini = True):
         self.sma = sma
         self.ecc = ecc
         self.inc = inc
@@ -815,7 +885,11 @@ class Planet(object):
         self.period = period
         t01 = Time(t0[0], format='jd')
         self.t0 = [t01.decimalyear, t0[1]*u.d.to(u.yr)]
-        self.Mpsini = Mpsini
+        self.Mp_is_Mpsini = Mp_is_Mpsini
+        if Mp_is_Mpsini:
+            self.Mpsini = Mpsini
+        else:
+            self.Mp = Mpsini
         self.Mstar = Mstar
         self.parallax = parallax
         distance = 1000/(MonteCarloIt(parallax))
@@ -834,12 +908,12 @@ class Planet(object):
         self.periastron_times = tps_mean
         self.periastron_times_error = tps_std
         # For a time in the near future:
-        obstime = Time('2026-04-15T00:00:00', format='isot').decimalyear
+        obstime = Time('2025-04-15T00:00:00', format='isot').decimalyear
         self.obstime = obstime
         # find the most recent time of periastron to that date:
         ind = np.where(self.periastron_times <= obstime)[0]
         nearest_periastron = tps_mean[ind[-1]]
-        self.nearest_periastron_to_Apr152026 = nearest_periastron
+        self.nearest_periastron_to_Apr152025 = nearest_periastron
         # Using the mean orbit parameter values generate an array of separations spanning one orbit:
         Orbfrac = np.linspace(0,1,1000)
         # create empty container:
@@ -856,7 +930,11 @@ class Planet(object):
             lan = self.lan
         else:
             lan = 0
-        kep = KeplersConstant(self.Mstar[0]*u.Msun,(self.Mpsini[0]/np.sin(np.radians(incl)))*u.Mearth)
+        # Compute kepler's constant depending on if provided mass is Mpsini or Mp:
+        try:
+            kep = KeplersConstant(self.Mstar[0]*u.Msun,(self.Mpsini[0]/np.sin(np.radians(incl)))*u.Mearth)
+        except AttributeError:
+            kep = KeplersConstant(self.Mstar[0]*u.Msun,self.Mp[0]*u.Mearth)
         ras1, decs1 = [], []
         for i in range(len(Orbfrac)):
             pos, vel, acc = KeplerianToCartesian(self.sma[0],
@@ -877,7 +955,7 @@ class Planet(object):
         # What fraction on the period is that?
         self.time_of_max_elongation_days = Orbfrac[self.ind_of_max_elongation] * self.period[0]
         # add that time to the nearest periastron and that gives the time of max elongation:
-        self.date_of_max_elongation = self.nearest_periastron_to_Apr152026 + self.time_of_max_elongation_days*u.d.to(u.yr)
+        self.date_of_max_elongation = self.nearest_periastron_to_Apr152025 + self.time_of_max_elongation_days*u.d.to(u.yr)
         
 
 class OrbitSim(object):
@@ -908,30 +986,43 @@ class OrbitSim(object):
         '''
         self.sma = MonteCarloIt(planet.sma, N = Ntrials)
         self.ecc = MonteCarloIt(planet.ecc, N = Ntrials)
-        self.Mpsini = MonteCarloIt(planet.Mpsini, N = Ntrials)
         self.argp = MonteCarloIt(planet.argp, N = Ntrials)
         self.period = MonteCarloIt([planet.period[0]*u.d.to(u.yr),
                                     planet.period[1]*u.d.to(u.yr)],
                                     N = Ntrials)
         self.Mstar = MonteCarloIt(planet.Mstar, N = Ntrials)
         self.distance = MonteCarloIt(planet.distance, N = Ntrials)
-        Mpsi = MonteCarloIt(self.Mpsini, N = Ntrials)
+        
         try:
+            # if inc = nan
             if np.isnan(planet.inc):
+                # draw inc from cos(i) uniform dist:
                 if limit_inc_lt90:
                     cosi = np.random.uniform(0.09,0.985, Ntrials)
                 else:
                     cosi = np.random.uniform(-0.985,0.985,Ntrials)
                 self.inc = np.degrees(np.arccos(cosi))
+            # if inc is single value:
             elif type(planet.inc) == int or type(planet.inc) == float:
+                # just make an array at that value
                 self.inc = np.array([planet.inc]*Ntrials)
+            # if inc is a tuple:
             elif type(planet.inc) == list:
-                self.inc = MonteCarloIt(inc, N = Ntrials)
+                # draw from a normal distribution
+                self.inc = MonteCarloIt(planet.inc, N = Ntrials)
         except ValueError:
             self.inc = MonteCarloIt(planet.inc, N = Ntrials)
-        self.Mp = Mpsi / np.sin(np.radians(self.inc))
-        if np.mean(self.Mp) > 6:
-            self.Mp = np.array([6]*Ntrials)
+        
+        # if the planet mass entered is an Msini:
+        if planet.Mp_is_Mpsini:
+            # draw from normal distribution:
+            self.Mpsini = MonteCarloIt(planet.Mpsini, N = Ntrials)
+            # and divide by sin(i)
+            self.Mp = self.Mpsini / np.sin(np.radians(self.inc))
+        else:
+            # otherwise draw from normal distribiton:
+            self.Mp = MonteCarloIt(planet.Mp, N = Ntrials)
+
         try:
             if np.isnan(planet.lan):
                 self.lan = np.random.uniform(size = Ntrials) * 360
@@ -954,6 +1045,9 @@ class OrbitSim(object):
         self.kep = KeplersConstant(self.Mstar*u.Msun,self.Mp*u.Mearth)
 
         pos, vel, acc = KeplerianToCartesian(self.sma,self.ecc,self.inc,self.argp,self.lan,self.Meananom,self.kep)
+        self.pos = pos
+        self.vel = vel
+        self.acc = acc
         self.dec_mas = (pos[:,0].value / self.distance)*1000
         self.ra_mas = (pos[:,1].value / self.distance)*1000
         self.sep_mas = np.sqrt(self.ra_mas**2 + self.dec_mas**2)
@@ -965,37 +1059,63 @@ class OrbitSim(object):
         self.phases = phases
 
         
-def MakeCloudPlot(points, lim = 50, plot_gmt_lod = False):
+def MakeCloudPlot(points, lim = 50, plot_contours = True):
     ''' For an OrbitSim object, make a plot of the array of points at a specific date.
 
     args:
         points [OrbitSim object]: OrbitSim object created from a Planet object
         lim [int]: limit of plot axis in mas
-        plot_gmt_lod [bool]: If True, plot circles representing the size of GMT lambda/D at 800 nm.
+        plot_contours [bool]: if True, plot 1, 2, and 3 sigma contour lines. Default = True
     '''
     import matplotlib.pyplot as plt
     fig,ax = plt.subplots()
     plt.scatter(0,0, marker='*',color='orange',s=300, zorder=10)
-    gmt_lod = (0.2063 * 0.8/25.4) * 1000
     linestyles=[':','--','-']
     pp = ax.scatter(points.ra_mas,points.dec_mas, ls='None', marker='.', alpha = 0.7, c=points.phases, cmap='viridis', s=0.1)
-    H, xbins, ybins, midpoints, clevels = GetHist(points.ra_mas, points.dec_mas, sigmas = [1,2,3])
-    CS1 = ax.contour(*midpoints, gaussian_filter(H.T, sigma=2), levels = clevels, 
-                      linewidths=3, linestyles = linestyles, colors=['orange']*len(linestyles))
+    if plot_contours:
+        H, xbins, ybins, midpoints, clevels = GetHist(points.ra_mas, points.dec_mas, sigmas = [1,2,3])
+        CS1 = ax.contour(*midpoints, gaussian_filter(H.T, sigma=2), levels = clevels, 
+                        linewidths=3, linestyles = linestyles, colors=['orange']*len(linestyles))
     cbar = plt.colorbar(pp)
     cbar.ax.set_ylabel('Viewing Phase [deg]')
-    if plot_gmt_lod:
-        import matplotlib.patches as patches
-        circ = patches.Circle((0,0), gmt_lod, alpha=0.5, color='grey')
-        ax.add_patch(circ)
-        an = patches.Annulus((0,0), r=2*gmt_lod, width=0.3, color='grey', ls='-')
-        ax.add_patch(an)
-        an = patches.Annulus((0,0), r=3*gmt_lod, width=0.3, color='grey', ls='-')
-        ax.add_patch(an)
-        clay_lod = (0.2063*(0.8)/6.5) * 1000
-        an = patches.Annulus((0,0), r=clay_lod, width=0.1, color='grey', ls=':')
-        ax.add_patch(an)
-    
+    ax.set_xlim(-lim,lim)
+    ax.set_ylim(-lim,lim)
+    ax.invert_xaxis()
+    ax.set_aspect('equal')
+    ax.set_xlabel('$\Delta$RA [mas]')
+    ax.set_ylabel('$\Delta$DEC [mas]')
+    ax.grid(ls=':')
+    return fig
+
+
+def MakeKDEPlot(points, lim = 50, kdesize = 50j, plot_contours = True, sigmas = [1,2,3]):
+    ''' For an OrbitSim object, make a plot of the probability density of points at a specific date.
+
+    args:
+        points [OrbitSim object]: OrbitSim object created from a Planet object
+        lim [int]: limit of plot axis in mas
+        kdesize [complex int]: Input to np.mgrid for KDE size
+    '''
+    import matplotlib.pyplot as plt
+    ind = np.isfinite(points.dec_mas)
+
+    kde, xmin, ymin, xmax, ymax = GetKDE(points.ra_mas[ind],points.dec_mas[ind], size=kdesize)
+    kdenormed = kde/np.sum(kde) # sums to 1 -> it's a PDF
+
+    fig,ax = plt.subplots()
+    plt.scatter(0,0, marker='*',color='orange',s=300, zorder=10)
+    a = ax.imshow(kdenormed, cmap=plt.cm.gist_earth_r, extent=[xmin, xmax, ymin, ymax])
+    cbar = plt.colorbar(a)
+    cbar.ax.set_ylabel('Probability Density')
+    if plot_contours:
+        linestyles=[':','--','-']
+        clevels = GetCLevels(kdenormed, sigmas = sigmas)
+        xe = np.linspace(xmin,xmax,kde.shape[0]+1)
+        ye = np.linspace(ymin,ymax,kde.shape[0]+1)
+        midpoints = (xe[1:] + xe[:-1])/2, (ye[1:] + ye[:-1])/2
+        CS1 = ax.contour(*midpoints, gaussian_filter(kdenormed, sigma=1), levels = clevels, 
+                      linewidths=3, linestyles = linestyles, colors=['orange']*len(linestyles))
+
     ax.set_xlim(-lim,lim)
     ax.set_ylim(-lim,lim)
     ax.invert_xaxis()
