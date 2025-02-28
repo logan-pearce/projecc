@@ -959,7 +959,7 @@ class Planet(object):
         
 
 class OrbitSim(object):
-    def __init__(self,planet, date, Ntrials = 100000, limit_inc_lt90 = True):
+    def __init__(self, planet, date, Ntrials = 100000, limit_inc_lt90 = True):
         ''' Generate an array of points along an orbit at a specific date for a Planet object
         
         Args:
@@ -1032,26 +1032,34 @@ class OrbitSim(object):
             self.lan = MonteCarloIt(planet.lan, N = Ntrials)
         # find the most recent periastron time:
         ind = np.where(planet.periastron_times <= date)[0]
+        # Add error on t0 to error on periastron passage date in quadrature:
+        t0_error = np.sqrt(planet.t0[1]**2 + planet.periastron_times_error[ind[-1]]**2)
+        # make MonetCarlo array
         trefarray = MonteCarloIt([planet.periastron_times[ind[-1]],
-                                planet.periastron_times_error[ind[-1]]],
+                                t0_error],
                                 N = Ntrials) # in decimalyear
         self.trefarray = trefarray
+        # compute amount of time from periastron to obsdate:
         deltaT = (date - trefarray) # in decimalyear
         self.deltaT = deltaT
+        # How many periods is that?
         Nperiods = deltaT / (planet.period[0]*u.d.to(u.yr))
         self.Nperiods = Nperiods
+        #Mean anomaly is Nperiods time 2pi:
         self.Meananom = (Nperiods % 1) * 2*np.pi
-        #Meananom = np.random.uniform(size = Ntrials) * 2*np.pi
+        # Compute kepler's constant:
         self.kep = KeplersConstant(self.Mstar*u.Msun,self.Mp*u.Mearth)
-
+        # compute position:
         pos, vel, acc = KeplerianToCartesian(self.sma,self.ecc,self.inc,self.argp,self.lan,self.Meananom,self.kep)
         self.pos = pos
         self.vel = vel
         self.acc = acc
+        # Convert au to mas:
         self.dec_mas = (pos[:,0].value / self.distance)*1000
         self.ra_mas = (pos[:,1].value / self.distance)*1000
+        # compute separation:
         self.sep_mas = np.sqrt(self.ra_mas**2 + self.dec_mas**2)
-
+        # compute phase angle for each point:
         phases = []
         for i in range(len(self.sma)):
             phase = GetPhaseAngle(self.Meananom[i], self.ecc[i], self.inc[i], self.argp[i])
@@ -1104,7 +1112,7 @@ def MakeKDEPlot(points, lim = 50, kdesize = 50j, plot_contours = True, sigmas = 
 
     fig,ax = plt.subplots()
     plt.scatter(0,0, marker='*',color='orange',s=300, zorder=10)
-    a = ax.imshow(kdenormed, cmap=plt.cm.gist_earth_r, extent=[xmin, xmax, ymin, ymax])
+    a = ax.imshow(kdenormed, cmap=plt.cm.gist_earth_r, extent=[xmin, xmax, ymin, ymax], origin='lower')
     cbar = plt.colorbar(a)
     cbar.ax.set_ylabel('Probability Density')
     if plot_contours:
@@ -1161,3 +1169,52 @@ def GetGaiaOrbitalElementsWithNSSTools(GaiaDR3_sourceid):
                 'Significance':r['significance'][0]
                }
     return elements
+
+
+
+def GetFracWithinAperture(planet, sigma_t0, sigma_argp, aperture_size):
+    argp = [planet.argp[0], sigma_argp]
+    t0 = [planet.t0[0], sigma_t0*u.d.to(u.yr)]
+    planet.t0 = t0
+    planet.argp = argp
+    points = OrbitSim(planet, planet.date_of_max_elongation)
+    sep = np.sqrt(
+        (points.ra_mas - planet.ras_mean_params[planet.ind_of_max_elongation[0]])**2 +
+        (points.dec_mas - planet.decs_mean_params[planet.ind_of_max_elongation[0]])**2
+        )
+    if type(aperture_size) == float or type(aperture_size) == int:
+        stats = np.where(sep < aperture_size)[0].shape[0]/sep.shape[0]
+    else:
+        stats = []
+        for ap in aperture_size:
+            stats.append(np.where(sep < ap)[0].shape[0]/sep.shape[0])
+    return stats
+
+def QuantifyErrorImprovement(planet, T0_err_array, argp_err_array, aperture_size):
+    if type(aperture_size) == float or type(aperture_size) == int:
+        probarrs = np.empty((1, T0_err_array.shape[0], argp_err_array.shape[0])) * np.nan
+    else:
+        probarrs = np.empty((len(aperture_size), T0_err_array.shape[0], argp_err_array.shape[0])) * np.nan
+
+    for i,sigt in enumerate(T0_err_array):
+        for j,sigar in enumerate(argp_err_array):
+            g = GetFracWithinAperture(planet, sigt, sigar, aperture_size)
+            for p in range(probarrs.shape[0]):
+                probarrs[p,i,j] = g[p]
+        update_progress(i+1,T0_err_array.shape[0])
+    return probarrs
+
+def GetContours(arr, levels = [0.16,0.5,0.84]):
+    Hflat = arr.T.flatten()
+    inds = np.argsort(Hflat)[::-1]
+    Hflat = Hflat[inds]
+    sm = np.cumsum(Hflat)
+    sm /= sm[-1]
+    V = np.empty(len(levels))
+    for i, v0 in enumerate(levels):
+        try:
+            V[i] = Hflat[sm <= v0][-1]
+        except IndexError:
+            V[i] = Hflat[0]
+    clevels = np.sort(V)
+    return clevels
