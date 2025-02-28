@@ -1,4 +1,4 @@
-![](projecc/logo/black-transp.png width=300)
+<img src="projecc/logo/black-transp.png" alt="logo" width="300"/>
 # projecc
 A small simple package for projecting orbital elements onto sky plane and vice versa.
 
