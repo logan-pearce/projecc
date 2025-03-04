@@ -1068,7 +1068,7 @@ class OrbitSim(object):
         self.phases = phases
 
         
-def MakeCloudPlot(planet, points, lim = 50, plot_contours = True):
+def MakeCloudPlot(planet, points, lim = 50, plot_contours = True, figsize = (9,7)):
     ''' For an OrbitSim object, make a plot of the array of points at a specific date.
 
     args:
@@ -1077,7 +1077,7 @@ def MakeCloudPlot(planet, points, lim = 50, plot_contours = True):
         plot_contours [bool]: if True, plot 1, 2, and 3 sigma contour lines. Default = True
     '''
     import matplotlib.pyplot as plt
-    fig,ax = plt.subplots()
+    fig,ax = plt.subplots(figsize = figsize)
     plt.scatter(0,0, marker='*',color='orange',s=300, zorder=10)
     linestyles=[':','--','-']
     pp = ax.scatter(points.ra_mas,points.dec_mas, ls='None', marker='.', alpha = 0.7, c=points.phases, cmap='viridis', s=0.1)
@@ -1087,7 +1087,7 @@ def MakeCloudPlot(planet, points, lim = 50, plot_contours = True):
                         linewidths=3, linestyles = linestyles, colors=['orange']*len(linestyles))
     cbar = plt.colorbar(pp)
     cbar.ax.set_ylabel('Viewing Phase [deg]')
-    ax.set_aspect('equal')
+    #ax.set_aspect('equal')
     ax.set_xlim(-lim*np.cos(np.radians(planet.dec)),lim*np.cos(np.radians(planet.dec)))
     ax.set_ylim(-lim,lim)
     ax.invert_xaxis()
@@ -1097,7 +1097,7 @@ def MakeCloudPlot(planet, points, lim = 50, plot_contours = True):
     return fig
 
 
-def MakeKDEPlot(points, lim = 50, kdesize = 50j, plot_contours = True, sigmas = [1,2,3]):
+def MakeKDEPlot(planet, points, lim = 50, kdesize = 50j, plot_contours = True, sigmas = [1,2,3], figsize = (9,7)):
     ''' For an OrbitSim object, make a plot of the probability density of points at a specific date.
 
     args:
@@ -1111,7 +1111,7 @@ def MakeKDEPlot(points, lim = 50, kdesize = 50j, plot_contours = True, sigmas = 
     kde, xmin, ymin, xmax, ymax = GetKDE(points.ra_mas[ind],points.dec_mas[ind], size=kdesize)
     kdenormed = kde/np.sum(kde) # sums to 1 -> it's a PDF
 
-    fig,ax = plt.subplots()
+    fig,ax = plt.subplots(figsize = figsize)
     plt.scatter(0,0, marker='*',color='orange',s=300, zorder=10)
     a = ax.imshow(kdenormed, cmap=plt.cm.gist_earth_r, extent=[xmin, xmax, ymin, ymax], origin='lower')
     cbar = plt.colorbar(a)
@@ -1125,10 +1125,10 @@ def MakeKDEPlot(points, lim = 50, kdesize = 50j, plot_contours = True, sigmas = 
         CS1 = ax.contour(*midpoints, gaussian_filter(kdenormed, sigma=1), levels = clevels, 
                       linewidths=3, linestyles = linestyles, colors=['orange']*len(linestyles))
 
-    ax.set_xlim(-lim,lim)
+    ax.set_xlim(-lim*np.cos(np.radians(planet.dec)),lim*np.cos(np.radians(planet.dec)))
     ax.set_ylim(-lim,lim)
     ax.invert_xaxis()
-    ax.set_aspect('equal')
+    #ax.set_aspect('equal')
     ax.set_xlabel('$\Delta$RA$^{*}$ [mas]')
     ax.set_ylabel('$\Delta$DEC [mas]')
     ax.grid(ls=':')
