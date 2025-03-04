@@ -18,7 +18,7 @@ See the <a href="https://github.com/logan-pearce/projecc/blob/main/projecc/Using
 ## Change log
 
 #### Feb 27, 2025:
-1.1.2 Added date functionality and accomodation for system decl
+1.1.3 Added date functionality and accomodation for system decl
 
 #### Feb 27, 2025:
 1.1.1 Minor bug fixes

@@ -1068,7 +1068,7 @@ class OrbitSim(object):
         self.phases = phases
 
         
-def MakeCloudPlot(points, lim = 50, plot_contours = True):
+def MakeCloudPlot(planet, points, lim = 50, plot_contours = True):
     ''' For an OrbitSim object, make a plot of the array of points at a specific date.
 
     args:
@@ -1087,10 +1087,10 @@ def MakeCloudPlot(points, lim = 50, plot_contours = True):
                         linewidths=3, linestyles = linestyles, colors=['orange']*len(linestyles))
     cbar = plt.colorbar(pp)
     cbar.ax.set_ylabel('Viewing Phase [deg]')
-    ax.set_xlim(-lim,lim)
+    ax.set_aspect('equal')
+    ax.set_xlim(-lim*np.cos(np.radians(planet.dec)),lim*np.cos(np.radians(planet.dec)))
     ax.set_ylim(-lim,lim)
     ax.invert_xaxis()
-    ax.set_aspect('equal')
     ax.set_xlabel('$\Delta$RA$^{*}$ [mas]')
     ax.set_ylabel('$\Delta$DEC [mas]')
     ax.grid(ls=':')
