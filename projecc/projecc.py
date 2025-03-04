@@ -876,7 +876,7 @@ class Planet(object):
         obsdate [astropy Time object]: date around which you'd like to observe
         Mp_is_Mpsini [bool]: Set to True if the planet mass tuple is an Msin(i) value, Default: True
     '''
-    def __init__(self,sma,ecc,inc,argp,lan,period,t0,Mpsini,Mstar,parallax,dec, Mp_is_Mpsini = True):
+    def __init__(self,sma,ecc,inc,argp,lan,period,t0,Mpsini,Mstar,parallax,Mp_is_Mpsini = True):
         self.sma = sma
         self.ecc = ecc
         self.inc = inc
@@ -890,7 +890,6 @@ class Planet(object):
             self.Mpsini = Mpsini
         else:
             self.Mp = Mpsini
-        self.dec = dec
         self.Mstar = Mstar
         self.parallax = parallax
         distance = 1000/(MonteCarloIt(parallax))
@@ -1057,7 +1056,7 @@ class OrbitSim(object):
         self.acc = acc
         # Convert au to mas:
         self.dec_mas = (pos[:,0].value / self.distance)*1000
-        self.ra_mas = ((pos[:,1].value / self.distance)*1000) * np.cos(np.radians(planet.dec))
+        self.ra_mas = ((pos[:,1].value / self.distance)*1000)
         # compute separation:
         self.sep_mas = np.sqrt(self.ra_mas**2 + self.dec_mas**2)
         # compute phase angle for each point:
@@ -1068,7 +1067,7 @@ class OrbitSim(object):
         self.phases = phases
 
         
-def MakeCloudPlot(planet, points, lim = 50, plot_contours = True, figsize = (9,7)):
+def MakeCloudPlot(points, lim = 50, plot_contours = True, figsize = (9,7)):
     ''' For an OrbitSim object, make a plot of the array of points at a specific date.
 
     args:
@@ -1088,7 +1087,7 @@ def MakeCloudPlot(planet, points, lim = 50, plot_contours = True, figsize = (9,7
     cbar = plt.colorbar(pp)
     cbar.ax.set_ylabel('Viewing Phase [deg]')
     #ax.set_aspect('equal')
-    ax.set_xlim(-lim*np.cos(np.radians(planet.dec)),lim*np.cos(np.radians(planet.dec)))
+    ax.set_xlim(-lim,lim)
     ax.set_ylim(-lim,lim)
     ax.invert_xaxis()
     ax.set_xlabel('$\Delta$RA$^{*}$ [mas]')
@@ -1097,7 +1096,7 @@ def MakeCloudPlot(planet, points, lim = 50, plot_contours = True, figsize = (9,7
     return fig
 
 
-def MakeKDEPlot(planet, points, lim = 50, kdesize = 50j, plot_contours = True, sigmas = [1,2,3], figsize = (9,7)):
+def MakeKDEPlot(points, lim = 50, kdesize = 50j, plot_contours = True, sigmas = [1,2,3], figsize = (9,7)):
     ''' For an OrbitSim object, make a plot of the probability density of points at a specific date.
 
     args:
@@ -1125,7 +1124,7 @@ def MakeKDEPlot(planet, points, lim = 50, kdesize = 50j, plot_contours = True, s
         CS1 = ax.contour(*midpoints, gaussian_filter(kdenormed, sigma=1), levels = clevels, 
                       linewidths=3, linestyles = linestyles, colors=['orange']*len(linestyles))
 
-    ax.set_xlim(-lim*np.cos(np.radians(planet.dec)),lim*np.cos(np.radians(planet.dec)))
+    ax.set_xlim(-lim,lim)
     ax.set_ylim(-lim,lim)
     ax.invert_xaxis()
     #ax.set_aspect('equal')
