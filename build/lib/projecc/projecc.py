@@ -630,7 +630,6 @@ def GetPhasesFromOrbit(sma,ecc,inc,argp,lon,Ms,Mp):
     '''
     # Getting phases for the orbit described by the mean orbital params:
     import astropy.units as u
-    from myastrotools.tools import keplerian_to_cartesian, keplersconstant
     # Find the above functions here: https://github.com/logan-pearce/myastrotools/blob/2bbc284ab723d02b7a7189494fd3eabaed434ce1/myastrotools/tools.py#L2593
     # and here: https://github.com/logan-pearce/myastrotools/blob/2bbc284ab723d02b7a7189494fd3eabaed434ce1/myastrotools/tools.py#L239
     # Make lists to hold results:
@@ -641,11 +640,11 @@ def GetPhasesFromOrbit(sma,ecc,inc,argp,lon,Ms,Mp):
     # Make an array of mean anomaly:
     meananom = np.linspace(0,2*np.pi,Npoints)
     # Compute kepler's constant:
-    kepmain = keplersconstant(Ms*u.Msun, Mp*u.Mjup)
+    kepmain = KeplersConstant(Ms*u.Msun, Mp*u.Mjup)
     # For each orbit point:
     for m in meananom:
         # compute 3d projected position:
-        pos, vel, acc = keplerian_to_cartesian(sma*u.au,ecc,inc,argp,lon,m,kepmain)
+        pos, vel, acc = KeplerianToCartesian(sma*u.au,ecc,inc,argp,lon,m,kepmain)
         # add to list:
         xskyplane.append(pos[0].value)
         yskyplane.append(pos[1].value)
@@ -808,7 +807,7 @@ def GetOrbitPlaneOfSky(sma,ecc,inc,argp,lon,meananom,kep):
         Z = pos[2].value
     return X, Y, Z
 
-def GetOrbitPlaneOfOrbit(sma,ecc,meananom,kep):
+def GetOrbitPlaneOfOrbit(sma,ecc,meananom):
     ''' For a value fo sma, ecc, and mass, compute the position in the orbit plane for one or
     an array of mean anomaly values past periastron.
 
@@ -876,7 +875,7 @@ class Planet(object):
         obsdate [astropy Time object]: date around which you'd like to observe
         Mp_is_Mpsini [bool]: Set to True if the planet mass tuple is an Msin(i) value, Default: True
     '''
-    def __init__(self,sma,ecc,inc,argp,lan,period,t0,Mpsini,Mstar,parallax,dec, Mp_is_Mpsini = True):
+    def __init__(self,sma,ecc,inc,argp,lan,period,t0,Mpsini,Mstar,parallax,Mp_is_Mpsini = True):
         self.sma = sma
         self.ecc = ecc
         self.inc = inc
@@ -890,14 +889,13 @@ class Planet(object):
             self.Mpsini = Mpsini
         else:
             self.Mp = Mpsini
-        self.dec = dec
         self.Mstar = Mstar
         self.parallax = parallax
         distance = 1000/(MonteCarloIt(parallax))
         self.distance = [np.mean(distance),np.std(distance)]
         self.GetDateOfMaxElongation()
         
-    def GetDateOfMaxElongation(self):
+    def GetDateOfMaxElongation(self, nearest_to = None):
         # Find some periastron dates going forward from t0
         timespan = np.arange(0,1000,1) # days
         tps = [self.t0[0]]
@@ -908,13 +906,17 @@ class Planet(object):
         tps_std = np.array([np.std(t) for t in tps])
         self.periastron_times = tps_mean
         self.periastron_times_error = tps_std
-        # For a time in the near future:
-        obstime = Time('2025-04-15T00:00:00', format='isot').decimalyear
-        self.obstime = obstime
+        if not nearest_to:
+            # For a time in the near future:
+            obstime = Time('2026-04-15T00:00:00', format='isot').decimalyear
+            self.obstime = obstime
+        else:
+            self.obstime = nearest_to
         # find the most recent time of periastron to that date:
-        ind = np.where(self.periastron_times <= obstime)[0]
-        nearest_periastron = tps_mean[ind[-1]]
-        self.nearest_periastron_to_Apr152025 = nearest_periastron
+        ind = np.where(self.periastron_times <= self.obstime)[0]
+        self.nearest_periastron = tps_mean[ind[-1]]
+        if not nearest_to:
+            self.nearest_periastron_to_Apr152028 = self.nearest_periastron
         # Using the mean orbit parameter values generate an array of separations spanning one orbit:
         Orbfrac = np.linspace(0,1,1000)
         # create empty container:
@@ -956,7 +958,10 @@ class Planet(object):
         # What fraction on the period is that?
         self.time_of_max_elongation_days = Orbfrac[self.ind_of_max_elongation] * self.period[0]
         # add that time to the nearest periastron and that gives the time of max elongation:
-        self.date_of_max_elongation = self.nearest_periastron_to_Apr152025 + self.time_of_max_elongation_days*u.d.to(u.yr)
+        self.date_of_max_elongation = self.nearest_periastron + self.time_of_max_elongation_days*u.d.to(u.yr)
+        if nearest_to:
+            return self.date_of_max_elongation
+
         
 
 class OrbitSim(object):
@@ -1057,7 +1062,7 @@ class OrbitSim(object):
         self.acc = acc
         # Convert au to mas:
         self.dec_mas = (pos[:,0].value / self.distance)*1000
-        self.ra_mas = ((pos[:,1].value / self.distance)*1000) * np.cos(np.radians(planet.dec))
+        self.ra_mas = ((pos[:,1].value / self.distance)*1000)
         # compute separation:
         self.sep_mas = np.sqrt(self.ra_mas**2 + self.dec_mas**2)
         # compute phase angle for each point:
@@ -1068,7 +1073,7 @@ class OrbitSim(object):
         self.phases = phases
 
         
-def MakeCloudPlot(planet, points, lim = 50, plot_contours = True):
+def MakeCloudPlot(points, lim = 50, plot_contours = True, figsize = (9,7)):
     ''' For an OrbitSim object, make a plot of the array of points at a specific date.
 
     args:
@@ -1077,7 +1082,7 @@ def MakeCloudPlot(planet, points, lim = 50, plot_contours = True):
         plot_contours [bool]: if True, plot 1, 2, and 3 sigma contour lines. Default = True
     '''
     import matplotlib.pyplot as plt
-    fig,ax = plt.subplots()
+    fig,ax = plt.subplots(figsize = figsize)
     plt.scatter(0,0, marker='*',color='orange',s=300, zorder=10)
     linestyles=[':','--','-']
     pp = ax.scatter(points.ra_mas,points.dec_mas, ls='None', marker='.', alpha = 0.7, c=points.phases, cmap='viridis', s=0.1)
@@ -1087,17 +1092,17 @@ def MakeCloudPlot(planet, points, lim = 50, plot_contours = True):
                         linewidths=3, linestyles = linestyles, colors=['orange']*len(linestyles))
     cbar = plt.colorbar(pp)
     cbar.ax.set_ylabel('Viewing Phase [deg]')
-    ax.set_aspect('equal')
-    ax.set_xlim(-lim*np.cos(np.radians(planet.dec)),lim*np.cos(np.radians(planet.dec)))
+    #ax.set_aspect('equal')
+    ax.set_xlim(-lim,lim)
     ax.set_ylim(-lim,lim)
     ax.invert_xaxis()
-    ax.set_xlabel('$\Delta$RA$^{*}$ [mas]')
+    ax.set_xlabel('$\Delta$RA [mas]')
     ax.set_ylabel('$\Delta$DEC [mas]')
     ax.grid(ls=':')
     return fig
 
 
-def MakeKDEPlot(points, lim = 50, kdesize = 50j, plot_contours = True, sigmas = [1,2,3]):
+def MakeKDEPlot(points, lim = 50, kdesize = 50j, plot_contours = True, sigmas = [1,2,3], figsize = (9,7)):
     ''' For an OrbitSim object, make a plot of the probability density of points at a specific date.
 
     args:
@@ -1111,7 +1116,7 @@ def MakeKDEPlot(points, lim = 50, kdesize = 50j, plot_contours = True, sigmas = 
     kde, xmin, ymin, xmax, ymax = GetKDE(points.ra_mas[ind],points.dec_mas[ind], size=kdesize)
     kdenormed = kde/np.sum(kde) # sums to 1 -> it's a PDF
 
-    fig,ax = plt.subplots()
+    fig,ax = plt.subplots(figsize = figsize)
     plt.scatter(0,0, marker='*',color='orange',s=300, zorder=10)
     a = ax.imshow(kdenormed, cmap=plt.cm.gist_earth_r, extent=[xmin, xmax, ymin, ymax], origin='lower')
     cbar = plt.colorbar(a)
@@ -1128,8 +1133,8 @@ def MakeKDEPlot(points, lim = 50, kdesize = 50j, plot_contours = True, sigmas = 
     ax.set_xlim(-lim,lim)
     ax.set_ylim(-lim,lim)
     ax.invert_xaxis()
-    ax.set_aspect('equal')
-    ax.set_xlabel('$\Delta$RA$^{*}$ [mas]')
+    #ax.set_aspect('equal')
+    ax.set_xlabel('$\Delta$RA [mas]')
     ax.set_ylabel('$\Delta$DEC [mas]')
     ax.grid(ls=':')
     return fig

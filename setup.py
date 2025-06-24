@@ -5,7 +5,7 @@ def readme():
         return f.read()
 
 setup(name='projecc',
-      version='1.1.5',
+      version='1.1.7',
       description='A small simple package for projecting orbital elements onto sky plane and vice versa',
       url='https://github.com/logan-pearce/projecc',
       author='Logan Pearce',
