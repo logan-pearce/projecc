@@ -897,11 +897,18 @@ class Planet(object):
         
     def GetDateOfMaxElongation(self, nearest_to = None):
         # Find some periastron dates going forward from t0
-        timespan = np.arange(0,1000,1) # days
-        tps = [self.t0[0]]
+        # timespan = np.arange(0,1000,1) # days
+        # tps = [self.t0[0]]
+        # for t in timespan:
+        #     pps = MonteCarloIt(self.period)
+        #     tps.append(tps[-1] + pps*u.d.to(u.yr))
+        # tps_mean = np.array([np.mean(t) for t in tps])
+        # tps_std = np.array([np.std(t) for t in tps])
+        timespan = np.arange(-1000,1000,1) # days
+        tps = []
         for t in timespan:
             pps = MonteCarloIt(self.period)
-            tps.append(tps[-1] + pps*u.d.to(u.yr))
+            tps.append(self.t0[0] + (pps*u.d.to(u.yr))*t)
         tps_mean = np.array([np.mean(t) for t in tps])
         tps_std = np.array([np.std(t) for t in tps])
         self.periastron_times = tps_mean
