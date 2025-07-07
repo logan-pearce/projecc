@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: projecc
-Version: 1.1.7
+Version: 1.1.8
 Summary: A small simple package for projecting orbital elements onto sky plane and vice versa
 Home-page: https://github.com/logan-pearce/projecc
 Author: Logan Pearce
@@ -9,3 +9,8 @@ License: MIT
 License-File: LICENSE
 Requires-Dist: numpy
 Requires-Dist: astropy
+
+projecc is a package for projecting Keplerian 2-body orbital elements into the sky plane
+      and vice versa. It can be used to generate orbit tracks, survey completeness plots, and predicting the
+      location of a planet in the sky plane over time. Find a tutorial here: https://github.com/logan-pearce/projecc/blob/main/projecc/UsingProjecc.ipynb. An interactive web app on predicting planet locations using projecc is here: https://reflected-light-planets.streamlit.app/. projecc is described in Pearce, Males, and Limbach (submitted to PASP)
+        

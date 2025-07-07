@@ -897,11 +897,18 @@ class Planet(object):
         
     def GetDateOfMaxElongation(self, nearest_to = None):
         # Find some periastron dates going forward from t0
-        timespan = np.arange(0,1000,1) # days
-        tps = [self.t0[0]]
+        # timespan = np.arange(0,1000,1) # days
+        # tps = [self.t0[0]]
+        # for t in timespan:
+        #     pps = MonteCarloIt(self.period)
+        #     tps.append(tps[-1] + pps*u.d.to(u.yr))
+        # tps_mean = np.array([np.mean(t) for t in tps])
+        # tps_std = np.array([np.std(t) for t in tps])
+        timespan = np.arange(-1000,1000,1) # days
+        tps = []
         for t in timespan:
             pps = MonteCarloIt(self.period)
-            tps.append(tps[-1] + pps*u.d.to(u.yr))
+            tps.append(self.t0[0] + (pps*u.d.to(u.yr))*t)
         tps_mean = np.array([np.mean(t) for t in tps])
         tps_std = np.array([np.std(t) for t in tps])
         self.periastron_times = tps_mean
@@ -1073,7 +1080,7 @@ class OrbitSim(object):
         self.phases = phases
 
         
-def MakeCloudPlot(points, lim = 50, plot_contours = True, figsize = (9,7)):
+def MakeCloudPlot(points, lim = None, plot_contours = True, figsize = (9,7)):
     ''' For an OrbitSim object, make a plot of the array of points at a specific date.
 
     args:
@@ -1092,6 +1099,8 @@ def MakeCloudPlot(points, lim = 50, plot_contours = True, figsize = (9,7)):
                         linewidths=3, linestyles = linestyles, colors=['orange']*len(linestyles))
     cbar = plt.colorbar(pp)
     cbar.ax.set_ylabel('Viewing Phase [deg]')
+    if not lim:
+        lim = max(points.sep_mas) + 0.2*max(points.sep_mas)
     #ax.set_aspect('equal')
     ax.set_xlim(-lim,lim)
     ax.set_ylim(-lim,lim)
@@ -1102,7 +1111,7 @@ def MakeCloudPlot(points, lim = 50, plot_contours = True, figsize = (9,7)):
     return fig
 
 
-def MakeKDEPlot(points, lim = 50, kdesize = 50j, plot_contours = True, sigmas = [1,2,3], figsize = (9,7)):
+def MakeKDEPlot(points, lim = None, kdesize = 50j, plot_contours = True, sigmas = [1,2,3], figsize = (9,7)):
     ''' For an OrbitSim object, make a plot of the probability density of points at a specific date.
 
     args:
@@ -1129,7 +1138,8 @@ def MakeKDEPlot(points, lim = 50, kdesize = 50j, plot_contours = True, sigmas = 
         midpoints = (xe[1:] + xe[:-1])/2, (ye[1:] + ye[:-1])/2
         CS1 = ax.contour(*midpoints, gaussian_filter(kdenormed, sigma=1), levels = clevels, 
                       linewidths=3, linestyles = linestyles, colors=['orange']*len(linestyles))
-
+    if not lim:
+        lim = max(points.sep_mas) + 0.2*max(points.sep_mas)
     ax.set_xlim(-lim,lim)
     ax.set_ylim(-lim,lim)
     ax.invert_xaxis()

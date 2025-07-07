@@ -5,7 +5,7 @@ def readme():
         return f.read()
 
 setup(name='projecc',
-      version='1.1.7',
+      version='1.1.8',
       description='A small simple package for projecting orbital elements onto sky plane and vice versa',
       long_description='''projecc is a package for projecting Keplerian 2-body orbital elements into the sky plane
       and vice versa. It can be used to generate orbit tracks, survey completeness plots, and predicting the

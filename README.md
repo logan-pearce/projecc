@@ -17,6 +17,12 @@ See the <a href="https://github.com/logan-pearce/projecc/blob/main/projecc/Using
 
 ## Change log
 
+#### Jul 7, 2025:
+1.1.8 Fixed minor typos and bugs
+
+#### Jun 28, 2025:
+1.1.8 Fixed minor typos and bugs
+
 #### Mar 4, 2025:
 1.1.6 Added date functionality
 
