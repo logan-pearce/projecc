@@ -3,6 +3,11 @@
 # projecc
 A small simple package for projecting orbital elements onto sky plane and vice versa.
 
+
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.15830011.svg)](https://doi.org/10.5281/zenodo.15830011)
+
+
 ## Installation
 
 Install via pip:
