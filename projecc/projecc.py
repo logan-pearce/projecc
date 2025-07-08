@@ -1011,7 +1011,7 @@ class OrbitSim(object):
             if np.isnan(planet.inc):
                 # draw inc from cos(i) uniform dist:
                 if limit_inc_lt90:
-                    cosi = np.random.uniform(0.09,0.985, Ntrials)
+                    cosi = np.random.uniform(0.0,0.985, Ntrials)
                 else:
                     cosi = np.random.uniform(-0.985,0.985,Ntrials)
                 self.inc = np.degrees(np.arccos(cosi))
