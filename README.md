@@ -23,6 +23,9 @@ See the <a href="https://github.com/logan-pearce/projecc/blob/main/projecc/Using
 ## Change log
 
 #### Jul 7, 2025:
+1.1.9 Added edge-on orbits to orbit sim
+
+#### Jul 7, 2025:
 1.1.8 Fixed minor typos and bugs
 
 #### Jun 28, 2025:
